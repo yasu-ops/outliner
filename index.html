@@ -2802,8 +2802,19 @@
 
     //ローカルの場合は以下の一文を入れる
     //mermaid.initialize({ startOnLoad: true});
-    //ローカルの場合は以下の一文をコメントアウト
-    mermaid.initialize({ startOnLoad: false,securityLevel: 'loose' });
+    //ローカルの場合は以下の一文をコメントアウト svg化するにあたって、初期化のコマンドを変えた。
+    //mermaid.initialize({ startOnLoad: false,securityLevel: 'loose' });
+
+    // Mermaidの初期化設定の例
+    mermaid.initialize({
+        startOnLoad: true,
+        // HTMLラベルを無効化（Wordで文字化け・消滅するのを防ぐ）
+        flowchart: { htmlLabels: false },
+        sequence: { htmlLabels: false },
+        gantt: { htmlLabels: false }
+        // お使いの図のタイプに合わせて追加してください
+    });
+
     window.myfunction=function make_tree(){
         document.getElementById("yasu").removeAttribute('data-processed');
         document.getElementById("yasu").innerHTML="";
@@ -2830,7 +2841,6 @@ function hideImage() {
 }
 
 async function captureHighResImage(num) {
-    
     const src = document.getElementById('yasu');
     const svg = src.querySelector('svg');
     
@@ -2838,113 +2848,87 @@ async function captureHighResImage(num) {
         console.error('SVG element not found');
         return;
     }
-    
-    const bbox = svg.getBBox();
-    const svgRect = svg.getBoundingClientRect();
-    
-    // スケール係数を計算
-    const scaleX = svgRect.width / bbox.width;
-    const scaleY = svgRect.height / bbox.height;
-    
-    // 基本的なスケールファクター（デバイスのピクセル比）
-    const baseScale = window.devicePixelRatio || 1;
-    
-    // 追加の解像度倍率（必要に応じて調整） original2 あるいは0.5
-    let kaizoudo = prompt("解像度を入力してください。初期値は0.5。iPadの場合は初期値のままでよい。PCで画像が荒くなる場合は解像度を上げる。ファイル名を指定後、「ダウンロードしますか？」というメッセージが表示されなかったら、もう一度ボタンを押して解像度を下げて再チャレンジ。","0.5");
-            if(kaizoudo==="" || kaizoudo===null){
-                    return;
-            }        
-    const resolutionMultiplier = parseFloat(kaizoudo);
-    
-    // 最終的なスケールファクター
-    const finalScale = baseScale * resolutionMultiplier;
-    
-    // キャプチャ範囲を計算（下部に余白を追加）
-    const captureWidth = Math.ceil(bbox.width * scaleX);
-    const captureHeight = Math.ceil(bbox.height * scaleY + 20); // 20pxの余白
-    
-    const canvas = await html2canvas(src, {
-        width: captureWidth,
-        height: captureHeight,
-        x: bbox.x * scaleX,
-        y: bbox.y * scaleY,
-        scale: finalScale,
-        logging: false,
-        useCORS: true, // クロスオリジンの画像をサポート
-        allowTaint: false, // セキュリティのため、デフォルトはfalse
-        backgroundColor: null // 透明背景
-    });
 
-    // 以下、キャンバスの処理（クリップボードへのコピーなど）
-    canvas.toBlob(function(blob) {
-        if(num===1){
+    if (num === 1) {
+        // ==========================================
+        // 【クリップボードコピー用】今まで通りのPNG処理
+        // ==========================================
+        const bbox = svg.getBBox();
+        const svgRect = svg.getBoundingClientRect();
+        const scaleX = svgRect.width / bbox.width;
+        const scaleY = svgRect.height / bbox.height;
+        const baseScale = window.devicePixelRatio || 1;
+        
+        let kaizoudo = prompt("解像度を入力してください。初期値は0.5。", "0.5");
+        if (!kaizoudo) return;
+        
+        const finalScale = baseScale * parseFloat(kaizoudo);
+        const captureWidth = Math.ceil(bbox.width * scaleX);
+        const captureHeight = Math.ceil(bbox.height * scaleY + 20);
+        
+        const canvas = await html2canvas(src, {
+            width: captureWidth,
+            height: captureHeight,
+            x: bbox.x * scaleX,
+            y: bbox.y * scaleY,
+            scale: finalScale,
+            logging: false,
+            useCORS: true,
+            backgroundColor: null
+        });
+
+        canvas.toBlob(function(blob) {
             const item = new ClipboardItem({ "image/png": blob });
             navigator.clipboard.write([item]).then(() => {
                 console.log('Image copied to clipboard');
+                alert("クリップボードにコピーしました");
             }).catch(err => {
                 console.error('Failed to copy image: ', err);
             });
-        }else{
-            let filename = prompt("ファイル名を付けてください。※iPadの場合は「ダウンロード」に保存されます。",TM.file_name_first.slice(0,-4) + ".png");
-            if(filename==="" || filename===null){
-                    return;
-            }        
-            const a = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            a.href = url;
-            a.download = filename; // 保存するファイル名 filename
-            document.body.appendChild(a);
-            a.click();
-            setTimeout(() => {
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            }, 0);            
-        }
-    });
-  
-/*new-------------------------------
-canvas.toBlob(function(blob) {
-    // Blobのサイズをチェック（例：100MB以上の場合は警告）
-    alert(`画像サイズ：${(blob.size / (1024 * 1024)).toFixed(2)}MB`);
-    const MAX_SIZE = 100 * 1024 * 1024; // 100MB in bytes
-    if (blob.size > MAX_SIZE) {
-        alert(`画像サイズが大きすぎます（${(blob.size / (1024 * 1024)).toFixed(2)}MB）。100MB以下にしてください。`);
-        return;
-    }
-
-    if(num === 1){
-        const item = new ClipboardItem({ "image/png": blob });
-        navigator.clipboard.write([item]).then(() => {
-            console.log('Image copied to clipboard');
-        }).catch(err => {
-            console.error('Failed to copy image: ', err);
-            alert('クリップボードへのコピーに失敗しました。画像が大きすぎる可能性があります。');
         });
+        canvas.remove();
+
     } else {
-        try {
-            const a = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            a.href = url;
-            a.download = 'image.png'; // 保存するファイル名
-            document.body.appendChild(a);
-            a.click();
-            setTimeout(() => {
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            }, 0);
-        } catch (error) {
-            console.error('Failed to create or download file:', error);
-            alert('ファイルの作成またはダウンロードに失敗しました。画像が大きすぎる可能性があります。');
+        // ==========================================
+        // 【ダウンロード用】全く別の方法（SVGのまま保存）
+        // ==========================================
+        
+        // Wordで正しく認識させるため、xmlns属性がない場合は追加する
+        if (!svg.hasAttribute('xmlns')) {
+            svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
         }
+        
+        // SVGのHTMLタグを文字列として取得
+        const svgData = svg.outerHTML;
+        
+        // 文字列をSVGファイル(Blob)に変換
+        const blob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+        
+        // デフォルトのファイル名を.svgに変更して尋ねる
+        let defaultName = TM && TM.file_name_first ? TM.file_name_first.slice(0, -4) + ".svg" : "diagram.svg";
+        let filename = prompt("ファイル名を付けてください。※iPadの場合は「ダウンロード」に保存されます。", defaultName);
+        
+        if (!filename) return;
+        
+        // 拡張子が.svgでなければ付与
+        if (!filename.toLowerCase().endsWith('.svg')) {
+            filename += '.svg';
+        }
+        
+        // ダウンロード処理
+        const a = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 0);
     }
-});
-*/
-
-
-
-    // ここでcanvasを削除します
-    canvas.remove();
-}   
+}
 
 
 
